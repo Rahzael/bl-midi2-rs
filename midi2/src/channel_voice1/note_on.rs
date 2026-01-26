@@ -44,10 +44,8 @@ struct NoteOn {
 /// a Note Off in CV1 but not in CV2, a 0 velocity CV2 message
 /// will be converted to a 1 velocity CV1 message.
 #[cfg(feature = "channel-voice2")]
-impl<
-        A: crate::buffer::Buffer<Unit = u32>,
-        B: crate::buffer::Buffer<Unit = u32> + crate::buffer::BufferMut,
-    > From<(crate::channel_voice2::NoteOn<A>, NoteOn<B>)> for NoteOn<B>
+impl<A: crate::buffer::Ump, B: crate::buffer::Ump + crate::buffer::BufferMut>
+    From<(crate::channel_voice2::NoteOn<A>, NoteOn<B>)> for NoteOn<B>
 {
     fn from(val: (crate::channel_voice2::NoteOn<A>, NoteOn<B>)) -> Self {
         use crate::traits::conversion::MinCenterMax;
@@ -62,8 +60,8 @@ impl<
             // we need to convert 0 velocity in CV2 to 1 velocity in CV1.
             // See MIDI 2.0 spec 7.4.2: MIDI 2.0 Note On Message -> Velocity
             // for details.
-            0 => dest.set_velocity(ux::u7::new(0x01)),
-            _ => dest.set_velocity(src.velocity().downscale::<ux::u7>()),
+            0 => dest.set_velocity(crate::ux::u7::new(0x01)),
+            _ => dest.set_velocity(src.velocity().downscale::<crate::ux::u7>()),
         }
         dest
     }
@@ -78,8 +76,32 @@ impl<
 /// will be converted to a 1 velocity CV1 message.
 #[cfg(feature = "channel-voice2")]
 impl<
-        A: crate::buffer::Buffer<Unit = u32>,
-        B: crate::buffer::Buffer<Unit = u32>
+        A: crate::buffer::Ump,
+        B: crate::buffer::Ump
+            + crate::buffer::BufferMut
+            + crate::buffer::BufferDefault
+            + crate::buffer::BufferTryResize,
+    > TryFrom<crate::channel_voice2::NoteOn<A>> for NoteOn<B>
+{
+    type Error = crate::error::BufferOverflow;
+
+    fn try_from(val: crate::channel_voice2::NoteOn<A>) -> Result<Self, Self::Error> {
+        let dest = NoteOn::<B>::try_new()?;
+        Ok((val, dest).into())
+    }
+}
+
+/// Converts a CV2 Note On message to a CV1 Note On message.
+/// This is only infallible for resizable buffers.
+/// For fixed size buffers, see the Into impl for (CV2, CV1).
+///
+/// Note: Due to 0 velocity Note On messages being considered
+/// a Note Off in CV1 but not in CV2, a 0 velocity CV2 message
+/// will be converted to a 1 velocity CV1 message.
+#[cfg(feature = "channel-voice2")]
+impl<
+        A: crate::buffer::Ump,
+        B: crate::buffer::Ump
             + crate::buffer::BufferMut
             + crate::buffer::BufferDefault
             + crate::buffer::BufferResize,
